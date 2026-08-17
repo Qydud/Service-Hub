@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Application, User
-from routerss.auth import get_current_admin
+from routerss.servicehub_auth import get_current_admin
 
 router = APIRouter()
 
