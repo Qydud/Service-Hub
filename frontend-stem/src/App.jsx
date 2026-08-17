@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import './App.css'
 
@@ -61,17 +61,25 @@ function Application() {
   const [photoUrl, setPhotoUrl] = useState('')
   const [state, setState] = useState('idle')
   const [message, setMessage] = useState('')
+  const [uploading, setUploading] = useState(false)
 
   const change = (event) => setForm({ ...form, [event.target.name]: event.target.value })
 
   async function uploadPhoto(file) {
     if (!file) return
-    const data = new FormData()
-    data.append('file', file)
-    const response = await fetch(`${API}/api/uploads/image`, { method: 'POST', body: data })
-    if (!response.ok) throw new Error('Не удалось загрузить фото')
-    const result = await response.json()
-    setPhotoUrl(result.url)
+    setUploading(true); setMessage('')
+    try {
+      const data = new FormData()
+      data.append('file', file)
+      const response = await fetch(`${API}/api/uploads/image`, { method: 'POST', body: data })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.detail || 'Не удалось загрузить фото')
+      setPhotoUrl(result.url)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function submit(event) {
@@ -86,22 +94,46 @@ function Application() {
     } catch (error) { setState('error'); setMessage(error.message) }
   }
 
-  return <Layout><main className="section page"><p className="eyebrow">Форма заявки</p><h1>Оставить заявку</h1><form className="application-form" onSubmit={submit}><label>Компания *<input name="company" value={form.company} onChange={change} required /></label><label>Контактное лицо *<input name="contact_name" value={form.contact_name} onChange={change} required /></label><label>Телефон *<input name="phone" value={form.phone} onChange={change} required /></label><label>Email *<input type="email" name="email" value={form.email} onChange={change} required /></label><label>Адрес объекта *<input name="object_address" value={form.object_address} onChange={change} required /></label><label>Услуга *<select name="service" value={form.service} onChange={change} required><option value="">Выберите услугу</option>{SERVICES.map((service) => <option key={service}>{service}</option>)}</select></label><label>Описание<textarea name="description" value={form.description} onChange={change} rows="6" placeholder="Опишите задачу, объём и пожелания" /></label><label>Фото объекта<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => uploadPhoto(e.target.files?.[0]).catch((err) => setMessage(err.message))} /></label>{photoUrl && <p className="file-ok">Фото загружено</p>}<button className="button" disabled={state === 'loading'}>{state === 'loading' ? 'Отправка…' : 'Отправить заявку'}</button>{message && <div className={state === 'success' ? 'notice success' : 'notice error'}>{message}</div>}</form></main></Layout>
+  return <Layout><main className="section page"><p className="eyebrow">Форма заявки</p><h1>Оставить заявку</h1><form className="application-form" onSubmit={submit}><label>Компания *<input name="company" value={form.company} onChange={change} required /></label><label>Контактное лицо *<input name="contact_name" value={form.contact_name} onChange={change} required /></label><label>Телефон *<input name="phone" value={form.phone} onChange={change} required /></label><label>Email *<input type="email" name="email" value={form.email} onChange={change} required /></label><label>Адрес объекта *<input name="object_address" value={form.object_address} onChange={change} required /></label><label>Услуга *<select name="service" value={form.service} onChange={change} required><option value="">Выберите услугу</option>{SERVICES.map((service) => <option key={service}>{service}</option>)}</select></label><label>Описание<textarea name="description" value={form.description} onChange={change} rows="6" placeholder="Опишите задачу, объём и пожелания" /></label><label>Фото объекта<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => uploadPhoto(e.target.files?.[0])} /></label>{uploading && <p className="file-ok">Загрузка фото…</p>}{photoUrl && !uploading && <p className="file-ok">Фото загружено</p>}<button className="button" disabled={state === 'loading' || uploading}>{state === 'loading' ? 'Отправка…' : 'Отправить заявку'}</button>{message && <div className={state === 'success' ? 'notice success' : 'notice error'}>{message}</div>}</form></main></Layout>
 }
 
 function AdminLogin() {
   const navigate = useNavigate(); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState('')
-  async function submit(e) { e.preventDefault(); setError(''); const r = await fetch(`${API}/api/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const data = await r.json(); if (!r.ok) return setError(data.detail || 'Ошибка входа'); localStorage.setItem('servicehub_admin_token', data.access_token); navigate('/admin') }
+  async function submit(e) { e.preventDefault(); setError(''); try { const r = await fetch(`${API}/api/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); const data = await r.json(); if (!r.ok) throw new Error(data.detail || 'Ошибка входа'); localStorage.setItem('servicehub_admin_token', data.access_token); navigate('/admin') } catch (error) { setError(error.message) } }
   return <main className="admin-shell"><form className="admin-login" onSubmit={submit}><p className="eyebrow">ServiceHub</p><h1>Администратор</h1><input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required /><input type="password" placeholder="Пароль" value={password} onChange={(e) => setPassword(e.target.value)} required /><button className="button">Войти</button>{error && <div className="notice error">{error}</div>}</form></main>
 }
 
 function Admin() {
-  const navigate = useNavigate(); const [apps, setApps] = useState([]); const [error, setError] = useState('')
+  const navigate = useNavigate(); const [apps, setApps] = useState([]); const [query, setQuery] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(true)
   const token = localStorage.getItem('servicehub_admin_token')
-  useEffect(() => { if (!token) return navigate('/admin/login'); fetch(`${API}/api/admin/applications`, { headers: { Authorization: `Bearer ${token}` } }).then(async r => { if (r.status === 401 || r.status === 403) { localStorage.removeItem('servicehub_admin_token'); navigate('/admin/login'); return } const data = await r.json(); setApps(data) }).catch(() => setError('Не удалось загрузить заявки')) }, [navigate, token])
-  async function status(id, value) { const r = await fetch(`${API}/api/admin/applications/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: value }) }); if (r.ok) { const updated = await r.json(); setApps(apps.map(a => a.id === id ? updated : a)) } }
-  async function remove(id) { if (!confirm('Удалить заявку?')) return; const r = await fetch(`${API}/api/admin/applications/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); if (r.ok) setApps(apps.filter(a => a.id !== id)) }
-  return <main className="admin-shell admin-page"><div className="admin-top"><div><p className="eyebrow">Панель администратора</p><h1>Заявки</h1></div><button className="button button-ghost" onClick={() => { localStorage.removeItem('servicehub_admin_token'); navigate('/admin/login') }}>Выйти</button></div>{error && <div className="notice error">{error}</div>}<div className="table-wrap"><table><thead><tr><th>ID</th><th>Компания</th><th>Контакт</th><th>Услуга</th><th>Адрес</th><th>Статус</th><th></th></tr></thead><tbody>{apps.map(a => <tr key={a.id}><td>#{a.id}</td><td><strong>{a.company}</strong><br />{a.email}<br />{a.phone}</td><td>{a.contact_name}</td><td>{a.service}</td><td>{a.object_address}</td><td><select value={a.status} onChange={e => status(a.id, e.target.value)}>{Object.entries(STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></td><td><button className="danger" onClick={() => remove(a.id)}>Удалить</button></td></tr>)}</tbody></table>{!apps.length && <p className="empty">Заявок пока нет.</p>}</div></main>
+
+  useEffect(() => {
+    if (!token) { navigate('/admin/login'); return }
+    fetch(`${API}/api/admin/applications`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async r => { if (r.status === 401 || r.status === 403) { localStorage.removeItem('servicehub_admin_token'); navigate('/admin/login'); return null } const data = await r.json(); if (!r.ok) throw new Error(data.detail || 'Не удалось загрузить заявки'); return data })
+      .then(data => { if (data) setApps(data) })
+      .catch(() => setError('Не удалось загрузить заявки'))
+      .finally(() => setLoading(false))
+  }, [navigate, token])
+
+  const filteredApps = useMemo(() => {
+    const value = query.trim().toLowerCase()
+    if (!value) return apps
+    return apps.filter(a => [a.id, a.company, a.contact_name, a.phone, a.email, a.object_address, a.service, a.status_label].some(field => String(field ?? '').toLowerCase().includes(value)))
+  }, [apps, query])
+
+  async function status(id, value) {
+    const r = await fetch(`${API}/api/admin/applications/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: value }) })
+    if (r.ok) { const updated = await r.json(); setApps(current => current.map(a => a.id === id ? updated : a)) }
+  }
+
+  async function remove(id) {
+    if (!window.confirm('Удалить заявку?')) return
+    const r = await fetch(`${API}/api/admin/applications/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    if (r.ok) setApps(current => current.filter(a => a.id !== id))
+  }
+
+  return <main className="admin-shell admin-page"><div className="admin-top"><div><p className="eyebrow">Панель администратора</p><h1>Заявки</h1></div><button className="button button-ghost" onClick={() => { localStorage.removeItem('servicehub_admin_token'); navigate('/admin/login') }}>Выйти</button></div>{error && <div className="notice error">{error}</div>}<div className="admin-toolbar"><input className="admin-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Поиск по компании, контакту, телефону, email, услуге или адресу" /><span className="admin-count">Найдено: {filteredApps.length}</span></div><div className="table-wrap">{loading ? <p className="empty">Загрузка заявок…</p> : <><table><thead><tr><th>ID</th><th>Компания</th><th>Контакт</th><th>Услуга</th><th>Адрес</th><th>Статус</th><th></th></tr></thead><tbody>{filteredApps.map(a => <tr key={a.id}><td>#{a.id}</td><td><strong>{a.company}</strong><br />{a.email}<br />{a.phone}</td><td>{a.contact_name}</td><td>{a.service}</td><td>{a.object_address}<br />{a.description && <small>{a.description}</small>}</td><td><select value={a.status} onChange={e => status(a.id, e.target.value)}>{Object.entries(STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></td><td><button className="danger" onClick={() => remove(a.id)}>Удалить</button></td></tr>)}</tbody></table>{!filteredApps.length && <p className="empty">Заявок по вашему запросу нет.</p>}</>}</div></main>
 }
 
 export default function App() {
