@@ -3,6 +3,45 @@ import { createContext, useContext, useEffect, useState } from 'react'
 const AuthContext = createContext(null)
 const TOKEN_KEY = 'servicehub_admin_token'
 
+function getErrorMessage(detail, status) {
+  if (typeof detail === 'string' && detail.trim()) return detail
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object') {
+          const message = item.msg || item.message || item.detail
+          const location = Array.isArray(item.loc) ? item.loc.join('.') : ''
+          if (message && location) return `${location}: ${message}`
+          if (message) return message
+          try {
+            return JSON.stringify(item)
+          } catch {
+            return null
+          }
+        }
+        return null
+      })
+      .filter(Boolean)
+
+    if (messages.length) return messages.join('; ')
+  }
+
+  if (detail && typeof detail === 'object') {
+    const message = detail.msg || detail.message || detail.detail
+    if (typeof message === 'string' && message.trim()) return message
+
+    try {
+      return JSON.stringify(detail)
+    } catch {
+      return `Ошибка ${status}`
+    }
+  }
+
+  return `Ошибка ${status}`
+}
+
 async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
@@ -20,7 +59,7 @@ async function request(path, options = {}) {
     throw new Error('Сервер вернул неожиданный ответ.')
   }
 
-  if (!response.ok) throw new Error(data?.detail || `Ошибка ${response.status}`)
+  if (!response.ok) throw new Error(getErrorMessage(data?.detail, response.status))
   return data
 }
 
