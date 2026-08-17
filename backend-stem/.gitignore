@@ -1,17 +1,10 @@
-echo __pycache__/ > .gitignore
-echo .env >> .gitignore
-echo *.pyc >> .gitignore
-echo .venv/ >> .gitignore
-
-
 .env
-*.env
-.env.local
-.env.production
-
-
+.env.*
+!.env.example
 __pycache__/
 *.pyc
-venv/
-.env
+*.pyo
 .venv/
+venv/
+*.db
+uploads/
