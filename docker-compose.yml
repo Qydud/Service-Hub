@@ -1,74 +1,37 @@
 version: '3.9'
 
 services:
-
-  # ─── PostgreSQL Database ───────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
-    container_name: stem_db
+    container_name: servicehub_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-stemuser}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stempassword}
-      POSTGRES_DB: ${POSTGRES_DB:-stemdb}
+      POSTGRES_USER: ${POSTGRES_USER:-servicehub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-servicehub_password}
+      POSTGRES_DB: ${POSTGRES_DB:-servicehub}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stemuser} -d ${POSTGRES_DB:-stemdb}" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-servicehub} -d ${POSTGRES_DB:-servicehub}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 3G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
     networks:
-      - stem_network
+      - servicehub_network
 
-  # ─── Redis Cache ───────────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: stem_redis
-    restart: unless-stopped
-    command: >
-      redis-server
-      --maxmemory 400mb
-      --maxmemory-policy allkeys-lru
-      --appendonly yes
-    volumes:
-      - redis_data:/data
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 500M
-        reservations:
-          cpus: '0.2'
-          memory: 200M
-    networks:
-      - stem_network
-
-  # ─── FastAPI Backend ───────────────────────────────────────────────────────
   backend:
     build:
       context: ./backend-stem
       dockerfile: Dockerfile
-    container_name: stem_backend
+    container_name: servicehub_backend
     restart: unless-stopped
     env_file:
       - ./backend-stem/.env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-stemuser}:${POSTGRES_PASSWORD:-stempassword}@db:5432/${POSTGRES_DB:-stemdb}
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-servicehub}:${POSTGRES_PASSWORD:-servicehub_password}@db:5432/${POSTGRES_DB:-servicehub}
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_started
     expose:
       - "8000"
     volumes:
@@ -76,77 +39,47 @@ services:
       - ./backend-stem:/app
       - ./frontend-stem/public:/frontend-public:ro
     command: >
-      sh -c "alembic upgrade head && python seed_db.py && gunicorn main:app -w 3 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile -"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.5'
-          memory: 5G
-        reservations:
-          cpus: '1.0'
-          memory: 2G
+      sh -c "alembic upgrade head && gunicorn main:app -w 3 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile -"
     networks:
-      - stem_network
+      - servicehub_network
 
-  # ─── React + Nginx Frontend ────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend-stem
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ""
-    container_name: stem_frontend
+    container_name: servicehub_frontend
     restart: unless-stopped
     expose:
       - "80"
     depends_on:
       - backend
-    deploy:
-      resources:
-        limits:
-          cpus: '0.8'
-          memory: 800M
-        reservations:
-          cpus: '0.3'
-          memory: 300M
     networks:
-      - stem_network
+      - servicehub_network
 
-  # ─── Nginx Proxy Manager ───────────────────────────────────────────────────
   nginx-proxy:
     image: jc21/nginx-proxy-manager:latest
-    container_name: nginx_proxy
+    container_name: servicehub_nginx_proxy
     restart: unless-stopped
     ports:
-      - "80:80"       # HTTP
-      - "443:443"     # HTTPS
-      - "81:81"       # Веб-интерфейс управления
+      - "80:80"
+      - "443:443"
+      - "81:81"
     volumes:
       - ./nginx-proxy/data:/data
       - ./nginx-proxy/letsencrypt:/etc/letsencrypt
     depends_on:
       - frontend
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 600M
-        reservations:
-          cpus: '0.2'
-          memory: 200M
     networks:
-      - stem_network
+      - servicehub_network
 
-# ─── Volumes ──────────────────────────────────────────────────────────────────
 volumes:
   postgres_data:
     driver: local
   uploads_data:
     driver: local
-  redis_data:
-    driver: local
 
-# ─── Networks ─────────────────────────────────────────────────────────────────
 networks:
-  stem_network:
+  servicehub_network:
     driver: bridge
