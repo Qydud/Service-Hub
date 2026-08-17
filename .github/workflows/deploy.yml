@@ -1,15 +1,14 @@
-name: Deploy to Production
+name: Deploy ServiceHub
 
 on:
-  push:
-    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout ServiceHub
+        uses: actions/checkout@v4
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -18,22 +17,11 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /var/www/stem
-            
-            # 1. Скачиваем свежие коммиты в кэш git, ничего не меняя на диске сервера
-            git fetch origin master
-            
-            # 2. Вытаскиваем из гита ТОЛЬКО папки с кодом. 
-            # Твой рабочий docker-compose.yml и файлы базы на сервере никто не тронет.
-            git checkout origin/master -- backend-stem/
-            git checkout origin/master -- frontend-stem/
-            
-            # 3. Пересобираем фронтенд без кэша, чтобы пробить старые слои
+            set -e
+            cd "${{ secrets.SERVICEHUB_DEPLOY_PATH }}"
+            git fetch origin
+            git checkout --force origin/${{ github.ref_name }} -- backend-stem frontend-stem docker-compose.yml
             docker compose build --no-cache frontend
             docker compose build backend
-            
-            # 4. Обновляем контейнеры кода. База данных и редис продолжают работать без остановок.
             docker compose up -d --no-deps --remove-orphans frontend backend
-            
-            # 5. Чистим мусорные слои образов
             docker image prune -f
