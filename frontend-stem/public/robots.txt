@@ -1,12 +1,7 @@
 User-agent: *
 Allow: /
 
-# Sitemap location
-Sitemap: https://stem-academia.kz/sitemap.xml
+Sitemap: https://service-hub.kz/sitemap.xml
 
-# Block admin panel
 Disallow: /admin/
-Disallow: /admin/login
-
-# Block API endpoints
 Disallow: /api/
