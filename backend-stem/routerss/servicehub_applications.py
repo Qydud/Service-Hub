@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Application
+from routerss.servicehub_auth import get_current_admin
+from models import User
 
 router = APIRouter()
 
@@ -53,6 +55,15 @@ class ApplicationCreate(BaseModel):
             return None
         value = value.strip()
         return value or None
+
+    @field_validator("photo")
+    @classmethod
+    def validate_photo_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        if not value.startswith("/uploads/") or value.startswith("//"):
+            raise ValueError("Недопустимый путь фотографии")
+        return value
 
 
 class ApplicationStatusUpdate(BaseModel):
@@ -105,6 +116,8 @@ def create_application(
         description=data.description,
         photo=data.photo,
         status="new",
+        created_at=_now(),
+        updated_at=_now(),
     )
     db.add(application)
     db.commit()
@@ -114,7 +127,12 @@ def create_application(
 
 
 @router.get("/{application_id}")
-def get_application(application_id: int, db: Session = Depends(get_db)):
+def get_application(
+    application_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
+):
+    """Return an application only to authenticated administrators."""
     application = db.query(Application).filter(Application.id == application_id).first()
     if not application:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
