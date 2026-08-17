@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-servicehub_password}
       POSTGRES_DB: ${POSTGRES_DB:-servicehub}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - servicehub_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-servicehub} -d ${POSTGRES_DB:-servicehub}"]
       interval: 10s
@@ -33,7 +33,7 @@ services:
     expose:
       - "8000"
     volumes:
-      - uploads_data:/app/uploads
+      - servicehub_uploads_data:/app/uploads
       - ./backend-stem:/app
       - ./frontend-stem/public:/frontend-public:ro
     command: >
@@ -73,9 +73,11 @@ services:
       - servicehub_network
 
 volumes:
-  postgres_data:
+  servicehub_postgres_data:
+    name: servicehub_postgres_data
     driver: local
-  uploads_data:
+  servicehub_uploads_data:
+    name: servicehub_uploads_data
     driver: local
 
 networks:
