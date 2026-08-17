@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from database import init_db
-from routerss import servicehub_admin, servicehub_applications, servicehub_auth
+from routerss import servicehub_admin, servicehub_applications, servicehub_auth, servicehub_uploads
 
 UPLOADS_DIR = Path("/app/uploads")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -18,10 +18,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin"],
@@ -38,20 +35,9 @@ def health():
     return {"status": "ok", "service": "ServiceHub"}
 
 
-app.include_router(
-    servicehub_applications.router,
-    prefix="/api/applications",
-    tags=["applications"],
-)
-app.include_router(
-    servicehub_auth.router,
-    prefix="/api/admin/auth",
-    tags=["admin-auth"],
-)
-app.include_router(
-    servicehub_admin.router,
-    prefix="/api/admin",
-    tags=["admin"],
-)
+app.include_router(servicehub_applications.router, prefix="/api/applications", tags=["applications"])
+app.include_router(servicehub_auth.router, prefix="/api/admin/auth", tags=["admin-auth"])
+app.include_router(servicehub_admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(servicehub_uploads.router, prefix="/api/uploads", tags=["uploads"])
 
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
