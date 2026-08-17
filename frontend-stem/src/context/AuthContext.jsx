@@ -1,101 +1,77 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { useUserEmail } from './UserEmailContext'
-import { login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser, updateUser as apiUpdateUser } from '../api/api'
+import { createContext, useContext, useEffect, useState } from 'react'
 
 const AuthContext = createContext(null)
+const TOKEN_KEY = 'servicehub_admin_token'
+
+async function request(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  })
+
+  const text = await response.text()
+  let data = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    throw new Error('Сервер вернул неожиданный ответ.')
+  }
+
+  if (!response.ok) throw new Error(data?.detail || `Ошибка ${response.status}`)
+  return data
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [showModal, setShowModal] = useState(false)
   const [loading, setLoading] = useState(true)
-  const { setUserEmail } = useUserEmail()
 
-  // Обработка автоматического логаута при 401
-  useEffect(() => {
-    const handleUnauthorized = () => {
-      setUser(null)
-      setUserEmail(null)
-      localStorage.removeItem('stem_access_token')
-      setShowModal(true)
-    }
-
-    window.addEventListener('unauthorized', handleUnauthorized)
-    return () => window.removeEventListener('unauthorized', handleUnauthorized)
-  }, [setUserEmail])
-
-  // Проверка авторизации при загрузке
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = localStorage.getItem('stem_access_token')
-        if (token) {
-          try {
-            const userData = await getCurrentUser(token)
-            setUser(userData)
-            setUserEmail(userData.email)
-          } catch (err) {
-            // Если получить пользователя не удалось, очистить токен
-            localStorage.removeItem('stem_access_token')
-            setUser(null)
-          }
-        }
-      } catch (err) {
-        console.error('Auth check error:', err)
-        localStorage.removeItem('stem_access_token')
-      } finally {
-        setLoading(false)
-      }
-    }
-    checkAuth()
-  }, [setUserEmail])
-
-  const register = async (phone, password) => {
-    const data = await apiRegister(phone, password)
-    localStorage.setItem('stem_access_token', data.access_token)
-    const userData = await getCurrentUser(data.access_token)
-    setUser(userData)
-    setUserEmail(userData.email || userData.phone)
-    setShowModal(false)
-    return userData
+  const loadCurrentAdmin = async (token) => {
+    const data = await request('/api/admin/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!data?.is_admin) throw new Error('Доступ запрещён.')
+    setUser(data)
+    return data
   }
 
-  const login = async (phone, password) => {
-    const data = await apiLogin(phone, password)
-    localStorage.setItem('stem_access_token', data.access_token)
-    const userData = await getCurrentUser(data.access_token)
-    setUser(userData)
-    setUserEmail(userData.email || userData.phone)
-    setShowModal(false)
-    return userData
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) {
+      setLoading(false)
+      return
+    }
+
+    loadCurrentAdmin(token)
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY)
+        setUser(null)
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const login = async (email, password) => {
+    const data = await request('/api/admin/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+    localStorage.setItem(TOKEN_KEY, data.access_token)
+    return loadCurrentAdmin(data.access_token)
   }
 
   const logout = () => {
-    apiLogout()
+    localStorage.removeItem(TOKEN_KEY)
     setUser(null)
-    setUserEmail(null)
-    setShowModal(false)
-  }
-
-  const openModal = () => setShowModal(true)
-  const closeModal = () => setShowModal(false)
-
-  const updateUser = async (data) => {
-    const updated = await apiUpdateUser(data)
-    setUser(updated)
-    return updated
   }
 
   return (
     <AuthContext.Provider value={{
       user,
       login,
-      register,
       logout,
-      updateUser,
-      showModal,
-      openModal,
-      closeModal,
-      isAuthenticated: !!user,
+      isAuthenticated: Boolean(user),
       isAdmin: user?.is_admin === true,
       loading,
     }}>
@@ -106,8 +82,6 @@ export function AuthProvider({ children }) {
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
-  if (context === null) {
-    throw new Error('useAuth must be used within AuthProvider')
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider')
   return context
 }
