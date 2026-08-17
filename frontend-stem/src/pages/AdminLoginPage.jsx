@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './AdminLoginPage.css'
@@ -6,126 +6,86 @@ import './AdminLoginPage.css'
 export default function AdminLoginPage() {
   const { isAuthenticated, isAdmin, loading, login } = useAuth()
   const navigate = useNavigate()
-
-  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [showPwd, setShowPwd] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
-  // Already logged in as admin → skip login page
   useEffect(() => {
-    if (!loading && isAuthenticated && isAdmin) {
-      navigate('/admin', { replace: true })
-    }
+    if (!loading && isAuthenticated && isAdmin) navigate('/admin', { replace: true })
   }, [loading, isAuthenticated, isAdmin, navigate])
 
-  async function handleSubmit(e) {
-    e.preventDefault()
+  async function handleSubmit(event) {
+    event.preventDefault()
     setError('')
     setSubmitting(true)
     try {
-      const userData = await login(phone.trim(), password)
-      if (!userData?.is_admin) {
-        setError('У этого аккаунта нет прав администратора.')
-        return
-      }
+      await login(email.trim().toLowerCase(), password)
       navigate('/admin', { replace: true })
     } catch (err) {
-      const msg = err?.message || ''
-      if (msg.includes('401') || msg.toLowerCase().includes('неверный')) {
-        setError('Неверный номер телефона или пароль.')
-      } else if (msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')) {
-        setError('Сервер недоступен. Проверьте соединение.')
-      } else {
-        setError(msg || 'Произошла ошибка. Попробуйте ещё раз.')
-      }
+      setError(err?.message || 'Не удалось выполнить вход.')
     } finally {
       setSubmitting(false)
     }
   }
 
   if (loading) {
-    return (
-      <div className="alog-wrapper">
-        <div className="alog-card">
-          <p className="alog-checking">Проверка сессии...</p>
-        </div>
-      </div>
-    )
+    return <div className="alog-wrapper"><div className="alog-card"><p className="alog-checking">Проверка сессии…</p></div></div>
   }
 
   return (
-    <div className="alog-wrapper">
-      <div className="alog-card">
-
-        {/* Brand mark */}
+    <main className="alog-wrapper">
+      <section className="alog-card" aria-labelledby="admin-login-title">
         <div className="alog-brand">
-          <img src="/img/pagefirst/Vector (89).png" alt="STEM Academia" className="alog-brand__img" />
+          <span className="alog-brand-mark">SH</span>
+          <span>Service<span>Hub</span></span>
         </div>
-
-        <p className="alog-subtitle">Панель администратора</p>
+        <p className="alog-kicker">ServiceHub / Admin</p>
+        <h1 id="admin-login-title">Панель администратора</h1>
+        <p className="alog-description">Войдите, чтобы просматривать заявки и менять их статус.</p>
 
         <form className="alog-form" onSubmit={handleSubmit} noValidate>
-
-          <div className="alog-field">
-            <label htmlFor="alog-phone">Номер телефона</label>
+          <label className="alog-field">
+            <span>Email администратора</span>
             <input
-              id="alog-phone"
-              type="tel"
-              autoComplete="tel"
-              placeholder="+7 (7XX) XXX-XX-XX"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
+              type="email"
+              autoComplete="username"
+              placeholder="admin@service-hub.kz"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
               required
               disabled={submitting}
             />
-          </div>
+          </label>
 
-          <div className="alog-field">
-            <label htmlFor="alog-password">Пароль</label>
-            <div className="alog-pwd-wrap">
+          <label className="alog-field">
+            <span>Пароль</span>
+            <div className="alog-password">
               <input
-                id="alog-password"
-                type={showPwd ? 'text' : 'password'}
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
-                placeholder="••••••••"
+                placeholder="Введите пароль"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 required
                 disabled={submitting}
               />
-              <button
-                type="button"
-                className="alog-pwd-toggle"
-                onClick={() => setShowPwd(v => !v)}
-                tabIndex={-1}
-                aria-label={showPwd ? 'Скрыть пароль' : 'Показать пароль'}
-              >
-                {showPwd ? 'Скрыть' : 'Показать'}
+              <button type="button" onClick={() => setShowPassword((value) => !value)}>
+                {showPassword ? 'Скрыть' : 'Показать'}
               </button>
             </div>
-          </div>
+          </label>
 
-          {error && (
-            <div className="alog-error" role="alert">
-              {error}
-            </div>
-          )}
+          {error && <div className="alog-error" role="alert">{error}</div>}
 
-          <button
-            type="submit"
-            className="alog-submit"
-            disabled={submitting}
-          >
-            {submitting ? 'Вход...' : 'Войти'}
+          <button className="alog-submit" type="submit" disabled={submitting}>
+            {submitting ? 'Вход…' : 'Войти в панель'}
           </button>
-
         </form>
 
-        <a href="/" className="alog-back">← Вернуться на сайт</a>
-
-      </div>
-    </div>
+        <a className="alog-back" href="/">← Вернуться на сайт</a>
+      </section>
+    </main>
   )
 }
