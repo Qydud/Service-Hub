@@ -1,9 +1,6 @@
 .env
 .env.*
 !.env.example
-**/.env
-**/.env.*
-!.env.example
 __pycache__/
 *.pyc
 *.pyo
@@ -12,3 +9,4 @@ venv/
 node_modules/
 nginx-proxy/data/
 nginx-proxy/letsencrypt/
+backups/
