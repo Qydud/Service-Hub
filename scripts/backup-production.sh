@@ -4,7 +4,8 @@ set -eu
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 mkdir -p "$BACKUP_DIR"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-FILE="$BACKUP_DIR/servicehub-$TIMESTAMP.sql.gz"
+DB_FILE="$BACKUP_DIR/servicehub-db-$TIMESTAMP.sql.gz"
+UPLOADS_FILE="$BACKUP_DIR/servicehub-uploads-$TIMESTAMP.tar.gz"
 
 if [ ! -f .env.production ]; then
   echo "Missing .env.production" >&2
@@ -16,8 +17,12 @@ fi
 DB_USER="${DB_USER:-servicehub}"
 DB_NAME="${DB_NAME:-servicehub}"
 
-echo "Creating PostgreSQL backup: $FILE"
+echo "Creating PostgreSQL backup: $DB_FILE"
 docker compose --env-file .env.production -f docker-compose.prod.yml exec -T db \
-  pg_dump -U "$DB_USER" -d "$DB_NAME" | gzip > "$FILE"
+  pg_dump -U "$DB_USER" -d "$DB_NAME" | gzip > "$DB_FILE"
 
-echo "Backup complete."
+echo "Creating uploads backup: $UPLOADS_FILE"
+docker compose --env-file .env.production -f docker-compose.prod.yml exec -T backend \
+  tar -czf - -C /app/uploads . > "$UPLOADS_FILE"
+
+echo "Backups complete."
